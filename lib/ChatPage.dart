@@ -90,12 +90,15 @@ class _ChatPage extends State<ChatPage> {
         children: <Widget>[
           Container(
             child: Text((text) {
-              return text == '/shrug' ? '¯\\_(ツ)_/¯' : text;
-            } (_message.text.trim()), style: TextStyle(color: Colors.white)),
+              return text == '/shrug' ? '¯\_(ツ)_/¯' : text;
+              //return text == '/smirkeyes' ? '( ͡° ͜ʖ ͡°)' :text;
+            } 
+            
+            (_message.text.trim()), style: TextStyle(color: Colors.white)),
             padding: EdgeInsets.all(12.0),
             margin: EdgeInsets.only(bottom: 8.0, left: 8.0, right: 8.0),
             width: 222.0,
-            decoration: BoxDecoration(color: _message.whom == clientID ? Colors.blueAccent : Colors.grey, borderRadius: BorderRadius.circular(7.0)),
+            decoration: BoxDecoration(color: _message.whom == clientID ? Colors.blueAccent: Colors.grey, borderRadius: BorderRadius.circular(7.0)),
           ),
         ],
         mainAxisAlignment: _message.whom == clientID ? MainAxisAlignment.end : MainAxisAlignment.start,
@@ -108,7 +111,8 @@ class _ChatPage extends State<ChatPage> {
           isConnecting ? Text('Connecting chat to ' + widget.server.name + '...') :
           isConnected ? Text('Live chat with ' + widget.server.name) :
           Text('Chat log with ' + widget.server.name)
-        )
+        ),
+        backgroundColor: Colors.grey[900],
       ),
       body: SafeArea(
         child: Column(
@@ -117,7 +121,7 @@ class _ChatPage extends State<ChatPage> {
               child: ListView(
                 padding: const EdgeInsets.all(12.0),
                 controller: listScrollController,
-                children: list
+                children: list              
               )
             ),
             Row(
@@ -134,7 +138,7 @@ class _ChatPage extends State<ChatPage> {
                           isConnected ? 'Type your message...' : 
                           'Chat got disconnected'
                         ),
-                        hintStyle: const TextStyle(color: Colors.grey),
+                        hintStyle: const TextStyle(color: Colors.white),
                       ),
                       enabled: isConnected,
                     )

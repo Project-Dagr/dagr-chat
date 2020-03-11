@@ -104,8 +104,10 @@ class _SelectBondedDevicePage extends State<SelectBondedDevicePage> {
       },
     )).toList();
     return Scaffold(
+      backgroundColor: Colors.grey[900],
       appBar: AppBar(
-        title: Text('Select device'),
+        title: Text('Select device', style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.black,
         actions: <Widget>[
           (
             _isDiscovering ? 
@@ -121,7 +123,7 @@ class _SelectBondedDevicePage extends State<SelectBondedDevicePage> {
           )
         ],
       ),
-      body: ListView(children: list)
+      body: ListView(children: list,)
     );
   }
 }

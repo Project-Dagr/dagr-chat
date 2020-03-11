@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:scoped_model/scoped_model.dart';
 
@@ -79,19 +80,27 @@ class _MainPage extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[900],
+      
       appBar: AppBar(
         title: const Text('Dagr Chat'),
+        backgroundColor: Colors.black,
       ),
       body: Container(
         child: ListView(
+          
           children: <Widget>[
             Divider(),
             ListTile(
-              title: const Text('General')
+              title: const Text('General', style: TextStyle(color: Colors.white))
             ),
             SwitchListTile(
-              title: const Text('Enable Bluetooth'),
+              title: const Text('Enable Bluetooth', style: TextStyle(color: Colors.white)),
               value: _bluetoothState.isEnabled,
+              activeColor: Colors.orange[400],
+              inactiveTrackColor: Colors.orange[700],
+              inactiveThumbColor: Colors.orange[400],
+              
               onChanged: (bool value) {
                 // Do the request and update with the true value then
                 future() async { // async lambda seems to not working
@@ -106,31 +115,41 @@ class _MainPage extends State<MainPage> {
               },
             ),
             ListTile(
-              title: const Text('Bluetooth status'),
-              subtitle: Text(_bluetoothState.toString()),
+              title: const Text('Bluetooth status', style: TextStyle(color: Colors.white)),
+              subtitle: Text(_bluetoothState.toString(), style: TextStyle(color: Colors.white)),
               trailing: RaisedButton(
+                color: Colors.orange[400],
                 child: const Text('Settings'),
+              
+                
+
                 onPressed: () { 
                   FlutterBluetoothSerial.instance.openSettings();
                 },
               ),
             ),
             ListTile(
-              title: const Text('Local adapter address'),
-              subtitle: Text(_address),
+              
+              title: const Text('Local adapter address', style: TextStyle(color: Colors.white)),
+              subtitle: Text(_address, style: TextStyle(color: Colors.white)),
+              
+              
+
             ),
             ListTile(
-              title: const Text('Local adapter name'),
-              subtitle: Text(_name),
+              title: const Text('Local adapter name', style: TextStyle(color: Colors.white)),
+              subtitle: Text(_name, style: TextStyle(color: Colors.white)),
               onLongPress: null,
             ),
             Divider(),
             ListTile(
-              title: const Text('Devices discovery and connection')
+              title: const Text('Devices discovery and connection', style: TextStyle(color: Colors.white))
+              
             ),
             ListTile(
               title: RaisedButton(
                 child: const Text('Connect to paired device to chat'),
+                color: Colors.orange[400],
                 onPressed: () async {
                   final BluetoothDevice selectedDevice = await Navigator.of(context).push(
                     MaterialPageRoute(builder: (context) { return SelectBondedDevicePage(checkAvailability: false); })

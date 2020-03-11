@@ -42,8 +42,9 @@ class _DiscoveryPage extends State<DiscoveryPage> {
 
   void _startDiscovery() {
     _streamSubscription = FlutterBluetoothSerial.instance.startDiscovery().listen((r) {
-      if(r.device.name.startsWith("Dagr-"))
+      if(r.device.name.startsWith("Dagr_"))
         setState(() { results.add(r); });
+        
     });
 
     _streamSubscription.onDone(() {
