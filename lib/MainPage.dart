@@ -1,10 +1,10 @@
 import 'dart:async';
+import 'package:dagr_chat/BLEDevicePage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:scoped_model/scoped_model.dart';
 
-import './DiscoveryPage.dart';
-import './SelectBondedDevicePage.dart';
+
 import './ChatPage.dart';
 import './BackgroundCollectingTask.dart';
 import './BackgroundCollectedPage.dart';
@@ -133,7 +133,7 @@ class _MainPage extends State<MainPage> {
                 child: const Text('Connect to paired device to chat'),
                 onPressed: () async {
                   final BluetoothDevice selectedDevice = await Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) { return SelectBondedDevicePage(checkAvailability: false); })
+                    MaterialPageRoute(builder: (context) { return BLEDevicePage(checkAvailability: false); })
                   );
 
                   if (selectedDevice != null) {

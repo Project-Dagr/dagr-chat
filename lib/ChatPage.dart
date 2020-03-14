@@ -20,6 +20,7 @@ class _Message {
   _Message(this.whom, this.text);
 }
 
+
 class _ChatPage extends State<ChatPage> {
   static final clientID = 0;
   static final maxMessageLength = 4096 - 3;
@@ -39,6 +40,21 @@ class _ChatPage extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
+
+    Future.doWhile(() async {
+      // Wait if adapter not enabled
+      if (await FlutterBluetoothSerial.instance.isEnabled) {
+        return false;
+      }
+      await Future.delayed(Duration(milliseconds: 0xDD));
+      return true;
+    }).then((_) {
+      // Update the address field
+      FlutterBluetoothSerial.instance.address.then((address) {
+        int clientID = int.parse(address)>>32;
+        setState(() { clientID = clientID; });
+      });
+    });
 
     BluetoothConnection.toAddress(widget.server.address).then((_connection) {
       print('Connected to the device');
@@ -156,6 +172,8 @@ class _ChatPage extends State<ChatPage> {
   }
 
   void _onDataReceived(Uint8List data) {
+
+
     // Allocate buffer for parsed data
     int backspacesCounter = 0;
     data.forEach((byte) {
@@ -184,8 +202,10 @@ class _ChatPage extends State<ChatPage> {
 
     // Create message if there is new line character
     String dataString = String.fromCharCodes(buffer);
+    // MessagePacket messagePacket;
     int index = buffer.indexOf(13);
     if (~index != 0) { // \r\n
+      // messagePacket = MessagePacket.fromBuffer(dataString);
       setState(() {
         messages.add(_Message(1, 
           backspacesCounter > 0 
@@ -212,7 +232,10 @@ class _ChatPage extends State<ChatPage> {
 
     if (text.length > 0)  {
       try {
+        _Message message = _Message(clientID, text);
+       
         connection.output.add(utf8.encode(text + "\r\n"));
+
         await connection.output.allSent;
 
         setState(() {
