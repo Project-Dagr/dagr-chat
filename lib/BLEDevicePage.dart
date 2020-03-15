@@ -104,6 +104,7 @@ class _BLEDevicePage extends State<BLEDevicePage> {
   void dispose() {
     // Avoid memory leak (`setState` after dispose) and cancel discovery
     _discoveryStreamSubscription?.cancel();
+    FlutterBlue.instance.stopScan();
 
     super.dispose();
   }
