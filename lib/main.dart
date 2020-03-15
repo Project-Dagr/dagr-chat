@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import './BLEDevicePage.dart';
 
 import './MainPage.dart';
 
@@ -8,7 +9,7 @@ class ExampleApplication extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: MainPage()
+      home: FindDevicesScreen()
     );
   }
 }

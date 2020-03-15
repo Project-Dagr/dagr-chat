@@ -41,14 +41,8 @@ class _ChatPage extends State<ChatPage> {
   bool isDisconnecting = false;
 
   StreamSubscription<BluetoothDeviceState> stateStream;
+  StreamSubscription<List<BluetoothService>> serviceStream;
 
-
-   Future<void> getServices() async {
-     print("hi");
-     var services = await widget.server.discoverServices();
-     print(services);
-    //  return Stream<void>(null);
-  }
   @override
   void initState() {
     super.initState();
@@ -62,35 +56,36 @@ class _ChatPage extends State<ChatPage> {
         });
 
     widget.server.connect();
-    // .then((_) {
-    //   setState(() {
-    //     isConnecting = false;
-    //     isDisconnecting = false;
-    //   });
-    // });
-    var yes = getServices();
-      // widget.server.services.((services) {
-      //   List<BluetoothCharacteristic> characteristics;
-      //   print("In discover services");
-      //   BluetoothService dagrService = services.singleWhere((service) =>
-      //       service.uuid
-      //           .toString()
-      //           .compareTo("a40a4466-5444-4fab-b012-16f820b749a8") ==
-      //       0);
-      //   print(dagrService.characteristics);
-      //   readCharacteristic = dagrService.characteristics.singleWhere(
-      //       (characteristic) =>
-      //           characteristic.uuid
-      //               .toString()
-      //               .compareTo("d73d98d8-6e1a-46b9-a949-d174d89ee10d") ==
-      //           0);
-      //   writeCharacteristic = dagrService.characteristics.singleWhere(
-      //       (characteristic) =>
-      //           characteristic.uuid
-      //               .toString()
-      //               .compareTo("c79c596a-2580-48db-b398-27215023882d") ==
-      //           0);
-      // });
+
+    serviceStream = widget.server.services.listen((services) async {
+      // print(services);
+      List<BluetoothCharacteristic> characteristics;
+      print("In discover services");
+      BluetoothService dagrService = services.singleWhere((service) =>
+          service.uuid
+              .toString()
+              .compareTo("a40a4466-5444-4fab-b012-16f820b749a8") ==
+          0);
+      readCharacteristic = dagrService.characteristics.singleWhere(
+          (characteristic) =>
+              characteristic.uuid
+                  .toString()
+                  .compareTo("d73d98d8-6e1a-46b9-a949-d174d89ee10d") ==
+              0);
+      writeCharacteristic = dagrService.characteristics.singleWhere(
+          (characteristic) =>
+              characteristic.uuid
+                  .toString()
+                  .compareTo("c79c596a-2580-48db-b398-27215023882d") ==
+              0);
+
+      print("ReadCharacteristic: ${readCharacteristic.toString()}");
+      print("WriteCharacteristic: ${writeCharacteristic.toString()}");
+
+      await readCharacteristic.setNotifyValue(true);
+      readCharacteristic.value
+          .listen((data) => _onDataReceived(Uint8List.fromList(data)));
+    });
 
     Future.doWhile(() async {
       // Wait if adapter not enabled
@@ -100,6 +95,17 @@ class _ChatPage extends State<ChatPage> {
       await Future.delayed(Duration(milliseconds: 0xDD));
       return true;
     }).then((_) {});
+
+    Future.doWhile(() async {
+      // Wait until connected
+      if (isConnected) {
+        return false;
+      }
+      await Future.delayed(Duration(milliseconds: 0xDD));
+      return true;
+    }).then((_) {
+      var _ = widget.server.discoverServices();
+    });
   }
 
   @override
@@ -109,6 +115,7 @@ class _ChatPage extends State<ChatPage> {
     if (isConnected) {
       widget.server.disconnect();
       stateStream.cancel();
+      serviceStream.cancel();
     }
 
     super.dispose();
@@ -183,6 +190,7 @@ class _ChatPage extends State<ChatPage> {
   }
 
   void _onDataReceived(Uint8List data) {
+    print("In recieve data");
     // Allocate buffer for parsed data
     int backspacesCounter = 0;
     data.forEach((byte) {
@@ -209,26 +217,34 @@ class _ChatPage extends State<ChatPage> {
 
     // Create message if there is new line character
     String dataString = String.fromCharCodes(buffer);
-    // MessagePacket messagePacket;
-    int index = buffer.indexOf(13);
-    if (~index != 0) {
-      // \r\n
-      // messagePacket = MessagePacket.fromBuffer(dataString);
+    print(dataString);
+    if (dataString != "") {
       setState(() {
-        messages.add(_Message(
-            1,
-            backspacesCounter > 0
-                ? _messageBuffer.substring(
-                    0, _messageBuffer.length - backspacesCounter)
-                : _messageBuffer + dataString.substring(0, index)));
-        _messageBuffer = dataString.substring(index);
+        messages.add(_Message(1, dataString));
       });
-    } else {
-      _messageBuffer = (backspacesCounter > 0
-          ? _messageBuffer.substring(
-              0, _messageBuffer.length - backspacesCounter)
-          : _messageBuffer + dataString);
     }
+
+    // MessagePacket messagePacket;
+    // int index = buffer.indexOf(13);
+    // if (~index != 0) {
+    //   print("test");
+    //   // \r\n
+    //   // messagePacket = MessagePacket.fromBuffer(dataString);
+    //   setState(() {
+    //     messages.add(_Message(
+    //         1,
+    //         backspacesCounter > 0
+    //             ? _messageBuffer.substring(
+    //                 0, _messageBuffer.length - backspacesCounter)
+    //             : _messageBuffer + dataString.substring(0, index)));
+    //     _messageBuffer = dataString.substring(index);
+    //   });
+    // } else {
+    //   _messageBuffer = (backspacesCounter > 0
+    //       ? _messageBuffer.substring(
+    //           0, _messageBuffer.length - backspacesCounter)
+    //       : _messageBuffer + dataString);
+    // }
   }
 
   void _sendMessage(String text) async {
