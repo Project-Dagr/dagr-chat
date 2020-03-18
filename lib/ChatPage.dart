@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
+import './proto/dagr.pb.dart';
 
 class ChatPage extends StatefulWidget {
   final BluetoothDevice server;
@@ -25,7 +26,7 @@ class _ChatPage extends State<ChatPage> {
   static final maxMessageLength = 4096 - 3;
   // BluetoothConnection connection;
 
-  List<_Message> messages = List<_Message>();
+  List<ChatMessage> messages = List<ChatMessage>();
   String _messageBuffer = '';
 
   final TextEditingController textEditingController =
@@ -84,7 +85,7 @@ class _ChatPage extends State<ChatPage> {
 
       await readCharacteristic.setNotifyValue(true);
       readCharacteristic.value
-          .listen((data) => _onDataReceived(Uint8List.fromList(data)));
+          .listen((data) => _onDataReceived(data));
     });
 
     Future.doWhile(() async {
@@ -130,18 +131,18 @@ class _ChatPage extends State<ChatPage> {
             child: Text(
                 (text) {
                   return text == '/shrug' ? '¯\\_(ツ)_/¯' : text;
-                }(_message.text.trim()),
+                }(utf8.decode(_message.message)),
                 style: TextStyle(color: Colors.white)),
             padding: EdgeInsets.all(12.0),
             margin: EdgeInsets.only(bottom: 8.0, left: 8.0, right: 8.0),
             width: 222.0,
             decoration: BoxDecoration(
                 color:
-                    _message.whom == clientID ? Colors.blueAccent : Colors.grey,
+                    _message.from == clientID ? Colors.blueAccent : Colors.grey,
                 borderRadius: BorderRadius.circular(7.0)),
           ),
         ],
-        mainAxisAlignment: _message.whom == clientID
+        mainAxisAlignment: _message.from == clientID
             ? MainAxisAlignment.end
             : MainAxisAlignment.start,
       );
@@ -189,7 +190,7 @@ class _ChatPage extends State<ChatPage> {
         ])));
   }
 
-  void _onDataReceived(Uint8List data) {
+  void _onDataReceived(List<int> data) {
     print("In recieve data");
     // Allocate buffer for parsed data
     int backspacesCounter = 0;
@@ -202,27 +203,32 @@ class _ChatPage extends State<ChatPage> {
     int bufferIndex = buffer.length;
 
     // Apply backspace control character
-    backspacesCounter = 0;
-    for (int i = data.length - 1; i >= 0; i--) {
-      if (data[i] == 8 || data[i] == 127) {
-        backspacesCounter++;
-      } else {
-        if (backspacesCounter > 0) {
-          backspacesCounter--;
-        } else {
-          buffer[--bufferIndex] = data[i];
-        }
-      }
-    }
+    // backspacesCounter = 0;
+    // for (int i = data.length - 1; i >= 0; i--) {
+    //   if (data[i] == 8 || data[i] == 127) {
+    //     backspacesCounter++;
+    //   } else {
+    //     if (backspacesCounter > 0) {
+    //       backspacesCounter--;
+    //     } else {
+    //       buffer[--bufferIndex] = data[i];
+    //     }
+    //   }
+    // }
+    ChatMessage message = ChatMessage.fromBuffer(data);
+    print(message.from);
+    setState(() {
+      messages.add(ChatMessage.fromBuffer(data));
+    });
 
     // Create message if there is new line character
-    String dataString = String.fromCharCodes(buffer);
-    print(dataString);
-    if (dataString != "") {
-      setState(() {
-        messages.add(_Message(1, dataString));
-      });
-    }
+    // String dataString = String.fromCharCodes(buffer);
+    // print(dataString);
+    // if (dataString != "") {
+    //   setState(() {
+    //     messages.add(ChatMessage.fromJson(jsonEncode({"from": 1, "to": -1, "message": utf8.encode(dataString)})));
+    //   });
+    // }
 
     // MessagePacket messagePacket;
     // int index = buffer.indexOf(13);
@@ -253,12 +259,16 @@ class _ChatPage extends State<ChatPage> {
 
     if (text.length > 0) {
       try {
-        _Message message = _Message(clientID, text);
+        // _Message message = _Message(clientID, text);
+        ChatMessage message = ChatMessage();
+        message.from = 0;
+        message.to = -1;
+        message.message = utf8.encode(text);
 
-        await writeCharacteristic.write(utf8.encode(text));
+        await writeCharacteristic.write(message.writeToBuffer());
 
         setState(() {
-          messages.add(_Message(clientID, text));
+          messages.add(message);
         });
 
         Future.delayed(Duration(milliseconds: 333)).then((_) {
