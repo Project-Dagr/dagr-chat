@@ -8,6 +8,11 @@ import './helpers/widgets.dart';
 import './BluetoothDeviceListEntry.dart';
 
 class FindDevicesScreen extends StatelessWidget {
+  String userId;
+
+
+  FindDevicesScreen (this.userId);
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -61,7 +66,7 @@ class FindDevicesScreen extends StatelessWidget {
                           onTap: () => Navigator.of(context)
                               .push(MaterialPageRoute(builder: (context) {
                             r.device.connect();
-                            return ChatPage(server: r.device);
+                            return ChatPage(server: r.device, userId: this.userId);
                           })),
                         ),
                       )

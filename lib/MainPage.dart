@@ -81,7 +81,7 @@ class _MainPage extends State<MainPage> {
                   final BluetoothDevice selectedDevice =
                       await Navigator.of(context)
                           .push(MaterialPageRoute(builder: (context) {
-                    return FindDevicesScreen();
+                    return FindDevicesScreen("-1");
                   }));
 
                   if (selectedDevice != null) {

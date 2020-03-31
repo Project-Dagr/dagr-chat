@@ -1,17 +1,22 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:convert/convert.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
+
 import './proto/dagr.pb.dart';
+
 
 class ChatPage extends StatefulWidget {
   final BluetoothDevice server;
 
-  const ChatPage({this.server});
+  String userId;
+
+  ChatPage({this.server, this.userId});
 
   @override
-  _ChatPage createState() => new _ChatPage();
+  _ChatPage createState() => new _ChatPage(this.userId);
 }
 
 class _Message {
@@ -22,8 +27,11 @@ class _Message {
 }
 
 class _ChatPage extends State<ChatPage> {
-  static final clientID = 0;
+  final clientID;
   static final maxMessageLength = 4096 - 3;
+
+
+  _ChatPage(this.clientID);
   // BluetoothConnection connection;
 
   List<ChatMessage> messages = List<ChatMessage>();
@@ -221,36 +229,6 @@ class _ChatPage extends State<ChatPage> {
       messages.add(ChatMessage.fromBuffer(data));
     });
 
-    // Create message if there is new line character
-    // String dataString = String.fromCharCodes(buffer);
-    // print(dataString);
-    // if (dataString != "") {
-    //   setState(() {
-    //     messages.add(ChatMessage.fromJson(jsonEncode({"from": 1, "to": -1, "message": utf8.encode(dataString)})));
-    //   });
-    // }
-
-    // MessagePacket messagePacket;
-    // int index = buffer.indexOf(13);
-    // if (~index != 0) {
-    //   print("test");
-    //   // \r\n
-    //   // messagePacket = MessagePacket.fromBuffer(dataString);
-    //   setState(() {
-    //     messages.add(_Message(
-    //         1,
-    //         backspacesCounter > 0
-    //             ? _messageBuffer.substring(
-    //                 0, _messageBuffer.length - backspacesCounter)
-    //             : _messageBuffer + dataString.substring(0, index)));
-    //     _messageBuffer = dataString.substring(index);
-    //   });
-    // } else {
-    //   _messageBuffer = (backspacesCounter > 0
-    //       ? _messageBuffer.substring(
-    //           0, _messageBuffer.length - backspacesCounter)
-    //       : _messageBuffer + dataString);
-    // }
   }
 
   void _sendMessage(String text) async {
@@ -261,10 +239,11 @@ class _ChatPage extends State<ChatPage> {
       try {
         // _Message message = _Message(clientID, text);
         ChatMessage message = ChatMessage();
-        message.from = 0;
-        message.to = -1;
+        message.from = this.clientID;
+        message.to = "-1";
         message.message = utf8.encode(text);
-
+        
+        print(text);
         await writeCharacteristic.write(message.writeToBuffer());
 
         setState(() {
