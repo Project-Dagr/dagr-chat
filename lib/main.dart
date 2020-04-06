@@ -7,26 +7,39 @@ import './MainPage.dart';
 
 void main() => runApp(new DagrMain());
 
-class DagrMain extends StatelessWidget {
+class DagrMain extends StatefulWidget {
+  @override
+  _DagrState createState() => new _DagrState();
+
+}
+
+class _DagrState extends State<DagrMain> {
   SharedPreferences prefs;
   String userId;
 
-  DagrMain() {
+  @override
+  void initState() {
+    super.initState();
     SharedPreferences.getInstance().then((prefs) {
       this.prefs = prefs;
       var uuid = Uuid();
 
-      this.userId = prefs.getString("userId") ?? "";
+      setState((){
+        userId = prefs.getString("userId") ?? "";
+      });
       if (this.userId == "") {
-        this.userId = uuid.v4();
+        setState(() {
+          userId = uuid.v4();
+        });
         prefs.setString("userId", this.userId);
       }
       print(this.userId);
-
     });
   }
+
   @override
   Widget build(BuildContext context) {
+    // TODO: implement build
     return MaterialApp(home: FindDevicesScreen(this.userId));
   }
 }

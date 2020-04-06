@@ -5,8 +5,7 @@ import 'package:convert/convert.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 
-import './proto/dagr.pb.dart';
-
+import "package:msgpack2/msgpack2.dart";
 
 class ChatPage extends StatefulWidget {
   final BluetoothDevice server;
@@ -20,21 +19,28 @@ class ChatPage extends StatefulWidget {
 }
 
 class _Message {
-  int whom;
-  String text;
+  int from;
+  int to;
+  Uint8List payload;
 
-  _Message(this.whom, this.text);
+  _Message(this.from, this.to, this.payload);
+
+    Map<String, dynamic> toJson() =>
+    {
+      'from': from,
+      'to': to,
+      'payload': payload
+    };
 }
 
 class _ChatPage extends State<ChatPage> {
   final clientID;
   static final maxMessageLength = 4096 - 3;
 
-
   _ChatPage(this.clientID);
   // BluetoothConnection connection;
 
-  List<ChatMessage> messages = List<ChatMessage>();
+  List<_Message> messages = List<_Message>();
   String _messageBuffer = '';
 
   final TextEditingController textEditingController =
@@ -92,8 +98,7 @@ class _ChatPage extends State<ChatPage> {
       print("WriteCharacteristic: ${writeCharacteristic.toString()}");
 
       await readCharacteristic.setNotifyValue(true);
-      readCharacteristic.value
-          .listen((data) => _onDataReceived(data));
+      readCharacteristic.value.listen((data) => _onDataReceived(data));
     });
 
     Future.doWhile(() async {
@@ -139,7 +144,7 @@ class _ChatPage extends State<ChatPage> {
             child: Text(
                 (text) {
                   return text == '/shrug' ? '¯\\_(ツ)_/¯' : text;
-                }(utf8.decode(_message.message)),
+                }(utf8.decode(_message.payload)),
                 style: TextStyle(color: Colors.white)),
             padding: EdgeInsets.all(12.0),
             margin: EdgeInsets.only(bottom: 8.0, left: 8.0, right: 8.0),
@@ -228,7 +233,6 @@ class _ChatPage extends State<ChatPage> {
     setState(() {
       messages.add(ChatMessage.fromBuffer(data));
     });
-
   }
 
   void _sendMessage(String text) async {
@@ -238,13 +242,20 @@ class _ChatPage extends State<ChatPage> {
     if (text.length > 0) {
       try {
         // _Message message = _Message(clientID, text);
-        ChatMessage message = ChatMessage();
-        message.from = this.clientID;
-        message.to = "-1";
-        message.message = utf8.encode(text);
+        // ChatMessage message = ChatMessage();
+        // message.from = this.clientID;
+        // message.to = "77b35958-b093-42f2-818c-36ba8a210294";
+        // message.from = 0;
+        // message.to = 1;
+        // message.message = utf8.encode(text);
+        _Message message = _Message(0,-1, utf8.encode(text));
+
         
-        print(text);
-        await writeCharacteristic.write(message.writeToBuffer());
+        var encodedMessage = serialize(message.toJson());
+        print(message.toJson());
+        print(encodedMessage);
+
+        await writeCharacteristic.write(encodedMessage);
 
         setState(() {
           messages.add(message);
