@@ -24,13 +24,12 @@ class _Message {
   Uint8List payload;
 
   _Message(this.from, this.to, this.payload);
+  _Message.fromJson(Map<String, dynamic> json)
+      : from = json['from'],
+        to = json['to'],
+        payload = json['payload'];
 
-    Map<String, dynamic> toJson() =>
-    {
-      'from': from,
-      'to': to,
-      'payload': payload
-    };
+  Map<String, dynamic> toJson() => {'from': from, 'to': to, 'payload': payload};
 }
 
 class _ChatPage extends State<ChatPage> {
@@ -228,10 +227,10 @@ class _ChatPage extends State<ChatPage> {
     //     }
     //   }
     // }
-    ChatMessage message = ChatMessage.fromBuffer(data);
+    _Message message = _Message.fromJson(deserialize(data));
     print(message.from);
     setState(() {
-      messages.add(ChatMessage.fromBuffer(data));
+      messages.add(message);
     });
   }
 
@@ -248,9 +247,8 @@ class _ChatPage extends State<ChatPage> {
         // message.from = 0;
         // message.to = 1;
         // message.message = utf8.encode(text);
-        _Message message = _Message(0,-1, utf8.encode(text));
+        _Message message = _Message(0, -1, utf8.encode(text));
 
-        
         var encodedMessage = serialize(message.toJson());
         print(message.toJson());
         print(encodedMessage);
