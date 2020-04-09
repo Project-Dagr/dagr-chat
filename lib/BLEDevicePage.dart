@@ -45,7 +45,7 @@ class FindDevicesScreen extends StatelessWidget {
                                     onPressed: () => Navigator.of(context).push(
                                         MaterialPageRoute(
                                             builder: (context) =>
-                                                DeviceScreen(device: d))),
+                                                ChatPage(server: d, userId: this.userId))),
                                   );
                                 }
                                 return Text(snapshot.data.toString());

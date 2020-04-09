@@ -29,7 +29,8 @@ dependencies:
   protoc_plugin: ^19.0.1
   shared_preferences:  ^0.5.6+3
   uuid: ^2.0.4
-  msgpack2: ^2.0.0 
+  msgpack_dart: ^0.0.7 
+  hashids2: ^1.0.1
 
 dev_dependencies:
   flutter_test:

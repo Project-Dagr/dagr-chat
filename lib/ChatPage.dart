@@ -5,7 +5,7 @@ import 'package:convert/convert.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 
-import "package:msgpack2/msgpack2.dart";
+import 'package:msgpack_dart/msgpack_dart.dart';
 
 class ChatPage extends StatefulWidget {
   final BluetoothDevice server;
@@ -19,17 +19,17 @@ class ChatPage extends StatefulWidget {
 }
 
 class _Message {
-  int from;
-  int to;
-  Uint8List payload;
+  String from;
+  String to;
+  List<int> payload;
 
   _Message(this.from, this.to, this.payload);
   _Message.fromJson(Map<String, dynamic> json)
       : from = json['from'],
         to = json['to'],
-        payload = json['payload'];
+        payload = json['payload'].cast<int>();
 
-  Map<String, dynamic> toJson() => {'from': from, 'to': to, 'payload': payload};
+  String toJson() => jsonEncode({'from': from, 'to': to, 'payload': payload});
 }
 
 class _ChatPage extends State<ChatPage> {
@@ -56,6 +56,9 @@ class _ChatPage extends State<ChatPage> {
 
   StreamSubscription<BluetoothDeviceState> stateStream;
   StreamSubscription<List<BluetoothService>> serviceStream;
+  StreamSubscription<List<int>> readStream;
+
+  bool readingValue = false;
 
   @override
   void initState() {
@@ -95,9 +98,13 @@ class _ChatPage extends State<ChatPage> {
 
       print("ReadCharacteristic: ${readCharacteristic.toString()}");
       print("WriteCharacteristic: ${writeCharacteristic.toString()}");
-
       await readCharacteristic.setNotifyValue(true);
-      readCharacteristic.value.listen((data) => _onDataReceived(data));
+      await widget.server.requestMtu(255);
+
+      readStream =
+          readCharacteristic.value.listen((data) => _onDataReceived(data));
+
+      // await readCharacteristic.read();
     });
 
     Future.doWhile(() async {
@@ -202,36 +209,24 @@ class _ChatPage extends State<ChatPage> {
         ])));
   }
 
-  void _onDataReceived(List<int> data) {
+  Future<void> _onDataReceived(List<int> test) async {
+    // if (!readingValue) {
+    // setState(() {
+    //   readingValue = true;
+    // });
     print("In recieve data");
-    // Allocate buffer for parsed data
-    int backspacesCounter = 0;
-    data.forEach((byte) {
-      if (byte == 8 || byte == 127) {
-        backspacesCounter++;
-      }
-    });
-    Uint8List buffer = Uint8List(data.length - backspacesCounter);
-    int bufferIndex = buffer.length;
-
-    // Apply backspace control character
-    // backspacesCounter = 0;
-    // for (int i = data.length - 1; i >= 0; i--) {
-    //   if (data[i] == 8 || data[i] == 127) {
-    //     backspacesCounter++;
-    //   } else {
-    //     if (backspacesCounter > 0) {
-    //       backspacesCounter--;
-    //     } else {
-    //       buffer[--bufferIndex] = data[i];
-    //     }
-    //   }
-    // }
-    _Message message = _Message.fromJson(deserialize(data));
+    print(test);
+   
+    _Message message = _Message.fromJson(jsonDecode(deserialize(test)));
     print(message.from);
     setState(() {
       messages.add(message);
     });
+    // setState(() {
+    //   readingValue = false;
+    // });
+    return;
+    // }
   }
 
   void _sendMessage(String text) async {
@@ -247,7 +242,7 @@ class _ChatPage extends State<ChatPage> {
         // message.from = 0;
         // message.to = 1;
         // message.message = utf8.encode(text);
-        _Message message = _Message(0, -1, utf8.encode(text));
+        _Message message = _Message(widget.userId, "-1", utf8.encode(text));
 
         var encodedMessage = serialize(message.toJson());
         print(message.toJson());
