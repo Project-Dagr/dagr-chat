@@ -1,83 +1,141 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:convert/convert.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+import 'package:flutter_blue/flutter_blue.dart';
+
+import 'package:msgpack_dart/msgpack_dart.dart';
 
 class ChatPage extends StatefulWidget {
   final BluetoothDevice server;
-  
-  const ChatPage({this.server});
-  
+
+  String userId;
+
+  ChatPage({this.server, this.userId});
+
   @override
-  _ChatPage createState() => new _ChatPage();
+  _ChatPage createState() => new _ChatPage(this.userId);
 }
 
 class _Message {
-  int whom;
-  String text;
+  String from;
+  String to;
+  List<int> payload;
 
-  _Message(this.whom, this.text);
+  _Message(this.from, this.to, this.payload);
+  _Message.fromJson(Map<String, dynamic> json)
+      : from = json['from'],
+        to = json['to'],
+        payload = json['payload'].cast<int>();
+
+  String toJson() => jsonEncode({'from': from, 'to': to, 'payload': payload});
 }
 
 class _ChatPage extends State<ChatPage> {
-  static final clientID = 0;
+  final clientID;
   static final maxMessageLength = 4096 - 3;
-  BluetoothConnection connection;
+
+  _ChatPage(this.clientID);
+  // BluetoothConnection connection;
 
   List<_Message> messages = List<_Message>();
   String _messageBuffer = '';
 
-  final TextEditingController textEditingController = new TextEditingController();
+  final TextEditingController textEditingController =
+      new TextEditingController();
   final ScrollController listScrollController = new ScrollController();
+  BluetoothCharacteristic readCharacteristic;
+  BluetoothCharacteristic writeCharacteristic;
 
   bool isConnecting = true;
-  bool get isConnected => connection != null && connection.isConnected;
+  // bool get isConnected => widget.server.state ==
+  bool isConnected = false;
 
   bool isDisconnecting = false;
+
+  StreamSubscription<BluetoothDeviceState> stateStream;
+  StreamSubscription<List<BluetoothService>> serviceStream;
+  StreamSubscription<List<int>> readStream;
+
+  bool readingValue = false;
 
   @override
   void initState() {
     super.initState();
 
-    BluetoothConnection.toAddress(widget.server.address).then((_connection) {
-      print('Connected to the device');
-      connection = _connection;
-      setState(() {
-        isConnecting = false;
-        isDisconnecting = false;
-      });
+    stateStream = widget.server.state.listen((state) => {
+          setState(() {
+            isConnecting = (state == BluetoothDeviceState.connecting);
+            isConnected = (state == BluetoothDeviceState.connected);
+            isDisconnecting = (state == BluetoothDeviceState.disconnecting);
+          })
+        });
 
-      connection.input.listen(_onDataReceived).onDone(() {
-        // Example: Detect which side closed the connection
-        // There should be `isDisconnecting` flag to show are we are (locally)
-        // in middle of disconnecting process, should be set before calling
-        // `dispose`, `finish` or `close`, which all causes to disconnect.
-        // If we except the disconnection, `onDone` should be fired as result.
-        // If we didn't except this (no flag set), it means closing by remote.
-        if (isDisconnecting) {
-          print('Disconnecting locally!');
-        }
-        else {
-          print('Disconnected remotely!');
-        }
-        if (this.mounted) {
-          setState(() {});
-        }
-      });
-    }).catchError((error) {
-      print('Cannot connect, exception occured');
-      print(error);
+    widget.server.connect();
+
+    serviceStream = widget.server.services.listen((services) async {
+      // print(services);
+      List<BluetoothCharacteristic> characteristics;
+      print("In discover services");
+      BluetoothService dagrService = services.singleWhere((service) =>
+          service.uuid
+              .toString()
+              .compareTo("a40a4466-5444-4fab-b012-16f820b749a8") ==
+          0);
+      readCharacteristic = dagrService.characteristics.singleWhere(
+          (characteristic) =>
+              characteristic.uuid
+                  .toString()
+                  .compareTo("d73d98d8-6e1a-46b9-a949-d174d89ee10d") ==
+              0);
+      writeCharacteristic = dagrService.characteristics.singleWhere(
+          (characteristic) =>
+              characteristic.uuid
+                  .toString()
+                  .compareTo("c79c596a-2580-48db-b398-27215023882d") ==
+              0);
+
+      print("ReadCharacteristic: ${readCharacteristic.toString()}");
+      print("WriteCharacteristic: ${writeCharacteristic.toString()}");
+      await readCharacteristic.setNotifyValue(true);
+      await widget.server.requestMtu(255);
+
+      readStream =
+          readCharacteristic.value.listen((data) => _onDataReceived(data));
+
+      // await readCharacteristic.read();
+    });
+
+    Future.doWhile(() async {
+      // Wait if adapter not enabled
+      if (await FlutterBlue.instance.isOn) {
+        return false;
+      }
+      await Future.delayed(Duration(milliseconds: 0xDD));
+      return true;
+    }).then((_) {});
+
+    Future.doWhile(() async {
+      // Wait until connected
+      if (isConnected) {
+        return false;
+      }
+      await Future.delayed(Duration(milliseconds: 0xDD));
+      return true;
+    }).then((_) {
+      var _ = widget.server.discoverServices();
     });
   }
 
   @override
   void dispose() {
     // Avoid memory leak (`setState` after dispose) and disconnect
+
     if (isConnected) {
-      isDisconnecting = true;
-      connection.dispose();
-      connection = null;
+      widget.server.disconnect();
+      stateStream.cancel();
+      serviceStream.cancel();
     }
 
     super.dispose();
@@ -89,145 +147,121 @@ class _ChatPage extends State<ChatPage> {
       return Row(
         children: <Widget>[
           Container(
-            child: Text((text) {
-              return text == '/shrug' ? '¯\_(ツ)_/¯' : text;
-              //return text == '/smirkeyes' ? '( ͡° ͜ʖ ͡°)' :text;
-            } 
-            
-            (_message.text.trim()), style: TextStyle(color: Colors.white)),
+            child: Text(
+                (text) {
+                  return text == '/shrug' ? '¯\\_(ツ)_/¯' : text;
+                }(utf8.decode(_message.payload)),
+                style: TextStyle(color: Colors.white)),
             padding: EdgeInsets.all(12.0),
             margin: EdgeInsets.only(bottom: 8.0, left: 8.0, right: 8.0),
             width: 222.0,
-            decoration: BoxDecoration(color: _message.whom == clientID ? Colors.blueAccent: Colors.grey, borderRadius: BorderRadius.circular(7.0)),
+            decoration: BoxDecoration(
+                color:
+                    _message.from == clientID ? Colors.blueAccent : Colors.grey,
+                borderRadius: BorderRadius.circular(7.0)),
           ),
         ],
-        mainAxisAlignment: _message.whom == clientID ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: _message.from == clientID
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
       );
     }).toList();
-    
+
     return Scaffold(
-      appBar: AppBar(
-        title: (
-          isConnecting ? Text('Connecting chat to ' + widget.server.name + '...') :
-          isConnected ? Text('Live chat with ' + widget.server.name) :
-          Text('Chat log with ' + widget.server.name)
-        ),
-        backgroundColor: Colors.grey[900],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: <Widget>[
-            Flexible(
+        appBar: AppBar(
+            title: (isConnecting
+                ? Text('Connecting chat to ' + widget.server.name + '...')
+                : isConnected
+                    ? Text('Live chat with ' + widget.server.name)
+                    : Text('Chat log with ' + widget.server.name))),
+        body: SafeArea(
+            child: Column(children: <Widget>[
+          Flexible(
               child: ListView(
-                padding: const EdgeInsets.all(12.0),
-                controller: listScrollController,
-                children: list              
-              )
+                  padding: const EdgeInsets.all(12.0),
+                  controller: listScrollController,
+                  children: list)),
+          Row(children: <Widget>[
+            Flexible(
+              child: Container(
+                  margin: const EdgeInsets.only(left: 16.0),
+                  child: TextField(
+                    style: const TextStyle(fontSize: 15.0),
+                    controller: textEditingController,
+                    decoration: InputDecoration.collapsed(
+                      hintText: (isConnecting
+                          ? 'Wait until connected...'
+                          : isConnected
+                              ? 'Type your message...'
+                              : 'Chat got disconnected'),
+                      hintStyle: const TextStyle(color: Colors.grey),
+                    ),
+                    enabled: isConnected,
+                  )),
             ),
-            Row(
-              children: <Widget>[
-                Flexible(
-                  child: Container(
-                    margin: const EdgeInsets.only(left: 16.0),
-                    child: TextField(
-                      style: const TextStyle(fontSize: 15.0),
-                      controller: textEditingController,
-                      decoration: InputDecoration.collapsed(
-                        hintText: (
-                          isConnecting ? 'Wait until connected...' : 
-                          isConnected ? 'Type your message...' : 
-                          'Chat got disconnected'
-                        ),
-                        hintStyle: const TextStyle(color: Colors.white),
-                      ),
-                      enabled: isConnected,
-                    )
-                  )
-                ),
-                Container(
-                  margin: const EdgeInsets.all(8.0),
-                  child: IconButton(
-                    icon: const Icon(Icons.send),
-                    onPressed: isConnected ? () => _sendMessage(textEditingController.text) : null
-                  ),
-                ),
-              ]
-            )
-          ]
-        )
-      )
-    );
+            Container(
+              margin: const EdgeInsets.all(8.0),
+              child: IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: () => _sendMessage(textEditingController.text)),
+            ),
+          ])
+        ])));
   }
 
-  void _onDataReceived(Uint8List data) {
-    // Allocate buffer for parsed data
-    int backspacesCounter = 0;
-    data.forEach((byte) {
-      if (byte == 8 || byte == 127) {
-        backspacesCounter++;
-      }
+  Future<void> _onDataReceived(List<int> test) async {
+    // if (!readingValue) {
+    // setState(() {
+    //   readingValue = true;
+    // });
+    print("In recieve data");
+    print(test);
+   
+    _Message message = _Message.fromJson(jsonDecode(deserialize(test)));
+    print(message.from);
+    setState(() {
+      messages.add(message);
     });
-    Uint8List buffer = Uint8List(data.length - backspacesCounter);
-    int bufferIndex = buffer.length;
-
-    // Apply backspace control character
-    backspacesCounter = 0;
-    for (int i = data.length - 1; i >= 0; i--) {
-      if (data[i] == 8 || data[i] == 127) {
-        backspacesCounter++;
-      }
-      else {
-        if (backspacesCounter > 0) {
-          backspacesCounter--;
-        }
-        else {
-          buffer[--bufferIndex] = data[i];
-        }
-      }
-    }
-
-    // Create message if there is new line character
-    String dataString = String.fromCharCodes(buffer);
-    int index = buffer.indexOf(13);
-    if (~index != 0) { // \r\n
-      setState(() {
-        messages.add(_Message(1, 
-          backspacesCounter > 0 
-            ? _messageBuffer.substring(0, _messageBuffer.length - backspacesCounter) 
-            : _messageBuffer
-          + dataString.substring(0, index)
-        ));
-        _messageBuffer = dataString.substring(index);
-      });
-    }
-    else {
-      _messageBuffer = (
-        backspacesCounter > 0 
-          ? _messageBuffer.substring(0, _messageBuffer.length - backspacesCounter) 
-          : _messageBuffer
-        + dataString
-      );
-    }
+    // setState(() {
+    //   readingValue = false;
+    // });
+    return;
+    // }
   }
 
   void _sendMessage(String text) async {
     text = text.trim();
     textEditingController.clear();
 
-    if (text.length > 0)  {
+    if (text.length > 0) {
       try {
-        connection.output.add(utf8.encode(text + "\r\n"));
-        await connection.output.allSent;
+        // _Message message = _Message(clientID, text);
+        // ChatMessage message = ChatMessage();
+        // message.from = this.clientID;
+        // message.to = "77b35958-b093-42f2-818c-36ba8a210294";
+        // message.from = 0;
+        // message.to = 1;
+        // message.message = utf8.encode(text);
+        _Message message = _Message(widget.userId, "-1", utf8.encode(text));
+
+        var encodedMessage = serialize(message.toJson());
+        print(message.toJson());
+        print(encodedMessage);
+
+        await writeCharacteristic.write(encodedMessage);
 
         setState(() {
-          messages.add(_Message(clientID, text));
+          messages.add(message);
         });
 
         Future.delayed(Duration(milliseconds: 333)).then((_) {
-          listScrollController.animateTo(listScrollController.position.maxScrollExtent, duration: Duration(milliseconds: 333), curve: Curves.easeOut);
+          listScrollController.animateTo(
+              listScrollController.position.maxScrollExtent,
+              duration: Duration(milliseconds: 333),
+              curve: Curves.easeOut);
         });
-      }
-      catch (e) {
+      } catch (e) {
+        print(e);
         // Ignore error, but notify state
         setState(() {});
       }

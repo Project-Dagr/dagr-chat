@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
-import './ContactsForm.dart';
 import './formScreen.dart';
 
 class ContactPage extends StatefulWidget{
