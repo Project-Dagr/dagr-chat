@@ -31,6 +31,8 @@ dependencies:
   uuid: ^2.0.4
   msgpack_dart: ^0.0.7 
   hashids2: ^1.0.1
+  sqflite:
+  path:
 
 dev_dependencies:
   flutter_test:
