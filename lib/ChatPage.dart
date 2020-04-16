@@ -6,30 +6,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 
 import 'package:msgpack_dart/msgpack_dart.dart';
+import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+
+import './services/db.dart';
+import './models/Message.dart';
 
 class ChatPage extends StatefulWidget {
   final BluetoothDevice server;
 
-  String userId;
+  final String userId;
 
   ChatPage({this.server, this.userId});
 
   @override
   _ChatPage createState() => new _ChatPage(this.userId);
-}
-
-class _Message {
-  String from;
-  String to;
-  List<int> payload;
-
-  _Message(this.from, this.to, this.payload);
-  _Message.fromJson(Map<String, dynamic> json)
-      : from = json['from'],
-        to = json['to'],
-        payload = json['payload'].cast<int>();
-
-  String toJson() => jsonEncode({'from': from, 'to': to, 'payload': payload});
 }
 
 class _ChatPage extends State<ChatPage> {
@@ -39,8 +30,8 @@ class _ChatPage extends State<ChatPage> {
   _ChatPage(this.clientID);
   // BluetoothConnection connection;
 
-  List<_Message> messages = List<_Message>();
-  String _messageBuffer = '';
+  List<Message> messages = List<Message>();
+  String messageBuffer = '';
 
   final TextEditingController textEditingController =
       new TextEditingController();
@@ -62,6 +53,7 @@ class _ChatPage extends State<ChatPage> {
 
   @override
   void initState() {
+    refresh();
     super.initState();
 
     stateStream = widget.server.state.listen((state) => {
@@ -141,27 +133,35 @@ class _ChatPage extends State<ChatPage> {
     super.dispose();
   }
 
+  Future<void> refresh() async {
+    List<Map<String, dynamic>> _results = await DB.query(Message.table);
+    messages = _results.map((item) => Message.fromMap(item)).toList();
+    setState(() {});
+    return;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final List<Row> list = messages.map((_message) {
+    final List<Row> list = messages.map((message) {
       return Row(
         children: <Widget>[
           Container(
             child: Text(
                 (text) {
                   return text == '/shrug' ? '¯\\_(ツ)_/¯' : text;
-                }(utf8.decode(_message.payload)),
+                }(utf8.decode(message.payload)),
                 style: TextStyle(color: Colors.white)),
             padding: EdgeInsets.all(12.0),
             margin: EdgeInsets.only(bottom: 8.0, left: 8.0, right: 8.0),
             width: 222.0,
             decoration: BoxDecoration(
-                color:
-                    _message.from == clientID ? Colors.blueAccent : Colors.grey,
+                color: message.source == clientID
+                    ? Colors.blueAccent
+                    : Colors.grey,
                 borderRadius: BorderRadius.circular(7.0)),
           ),
         ],
-        mainAxisAlignment: _message.from == clientID
+        mainAxisAlignment: message.source == clientID
             ? MainAxisAlignment.end
             : MainAxisAlignment.start,
       );
@@ -216,15 +216,24 @@ class _ChatPage extends State<ChatPage> {
     // });
     print("In recieve data");
     print(test);
-   
-    _Message message = _Message.fromJson(jsonDecode(deserialize(test)));
-    print(message.from);
+
+    Message message =
+        Message.fromMap(jsonDecode(deserialize(test as Uint8List)));
+    print(message.source);
+    await DB.insert(Message.table, message);
     setState(() {
-      messages.add(message);
+      messages = List<Message>();
     });
+    await refresh();
     // setState(() {
     //   readingValue = false;
     // });
+    Future.delayed(Duration(milliseconds: 333)).then((_) {
+      listScrollController.animateTo(
+          listScrollController.position.maxScrollExtent,
+          duration: Duration(milliseconds: 333),
+          curve: Curves.easeOut);
+    });
     return;
     // }
   }
@@ -235,24 +244,27 @@ class _ChatPage extends State<ChatPage> {
 
     if (text.length > 0) {
       try {
-        // _Message message = _Message(clientID, text);
+        // Message message = Message(clientID, text);
         // ChatMessage message = ChatMessage();
         // message.from = this.clientID;
         // message.to = "77b35958-b093-42f2-818c-36ba8a210294";
         // message.from = 0;
         // message.to = 1;
         // message.message = utf8.encode(text);
-        _Message message = _Message(widget.userId, "-1", utf8.encode(text));
+        Message message = Message(
+            source: widget.userId, dest: "-1", payload: utf8.encode(text));
 
-        var encodedMessage = serialize(message.toJson());
-        print(message.toJson());
+        var encodedMessage = serialize(message.toJSON());
+        print(message.toMap());
         print(encodedMessage);
 
         await writeCharacteristic.write(encodedMessage);
 
+        await DB.insert(Message.table, message);
         setState(() {
-          messages.add(message);
+          messages = List<Message>();
         });
+        refresh();
 
         Future.delayed(Duration(milliseconds: 333)).then((_) {
           listScrollController.animateTo(

@@ -3,11 +3,18 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import './BLEDevicePage.dart';
-import 'package:uuid/uuid.dart';
 import 'package:hashids2/hashids2.dart';
+import './services/db.dart';
 
+<<<<<<< HEAD
+=======
+void main() async {
+>>>>>>> 0ec26f61a8e7aa996306ed4d08be16dfe90f36ff
 
-void main() => runApp(new DagrMain());
+  WidgetsFlutterBinding.ensureInitialized();
+  await DB.init();
+  runApp(new DagrMain());
+}
 
 class DagrMain extends StatefulWidget {
   @override
