@@ -1,16 +1,15 @@
+import 'dart:async';
 import 'dart:math';
 
+import 'package:dagr_chat/MainPage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_blue/flutter_blue.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import './BLEDevicePage.dart';
 import 'package:hashids2/hashids2.dart';
 import './services/db.dart';
 
-<<<<<<< HEAD
-=======
 void main() async {
->>>>>>> 0ec26f61a8e7aa996306ed4d08be16dfe90f36ff
-
   WidgetsFlutterBinding.ensureInitialized();
   await DB.init();
   runApp(new DagrMain());
@@ -24,7 +23,6 @@ class DagrMain extends StatefulWidget {
 class _DagrState extends State<DagrMain> {
   SharedPreferences prefs;
   String userId;
-
   @override
   void initState() {
     super.initState();
@@ -53,6 +51,6 @@ class _DagrState extends State<DagrMain> {
   @override
   Widget build(BuildContext context) {
     // TODO: implement build
-    return MaterialApp(home: FindDevicesScreen(this.userId));
+    return MaterialApp(home: MainPage());
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:dagr_chat/ChatPage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import './DeviceScreen.dart';
 import './helpers/widgets.dart';
 
@@ -9,10 +10,14 @@ import './BluetoothDeviceListEntry.dart';
 
 class FindDevicesScreen extends StatelessWidget {
   String userId;
+  SharedPreferences prefs;
 
+  FindDevicesScreen(this.userId) {
+    SharedPreferences.getInstance().then((prefs) {
+      this.prefs = prefs;
+    });
+  }
 
-  FindDevicesScreen (this.userId);
-  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -44,8 +49,9 @@ class FindDevicesScreen extends StatelessWidget {
                                     child: Text('OPEN'),
                                     onPressed: () => Navigator.of(context).push(
                                         MaterialPageRoute(
-                                            builder: (context) =>
-                                                ChatPage(server: d, userId: this.userId))),
+                                            builder: (context) => ChatPage(
+                                                server: d,
+                                                userId: this.userId))),
                                   );
                                 }
                                 return Text(snapshot.data.toString());
@@ -59,16 +65,26 @@ class FindDevicesScreen extends StatelessWidget {
                 stream: FlutterBlue.instance.scanResults,
                 initialData: [],
                 builder: (c, snapshot) => Column(
-                  children: snapshot.data.where((r) => r.device.name.startsWith("Dagr")).toList()
+                  children: snapshot.data
+                      .where((r) => r.device.name.startsWith("Dagr"))
+                      .toList()
                       .map(
                         (r) => ScanResultTile(
-                          result: r,
-                          onTap: () => Navigator.of(context)
-                              .push(MaterialPageRoute(builder: (context) {
-                            r.device.connect();
-                            return ChatPage(server: r.device, userId: this.userId);
-                          })),
-                        ),
+                            result: r,
+                            onTap: () async {
+                              r.device.connect();
+                              print(r.device.id.toString());
+                              if (await this.prefs.setString(
+                                  "savedDevice", r.device.id.toString()))
+                                Navigator.of(context).pop();
+                            }
+                            // Navigator.of(context)
+                            //     .push(MaterialPageRoute(builder: (context) {
+
+                            //   return ChatPage(
+                            //       server: r.device, userId: this.userId);
+                            // })),
+                            ),
                       )
                       .toList(),
                 ),
