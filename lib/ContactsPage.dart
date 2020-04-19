@@ -1,54 +1,83 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import './services/db.dart';
+
+import './models/Contact.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
-import './formScreen.dart';
+import './ContactFormScreen.dart';
 
-class ContactPage extends StatefulWidget{
-  
+class ContactPage extends StatefulWidget {
   @override
   _ContactPageEmpty createState() => new _ContactPageEmpty();
-
-
 }
 
-class _Contact {
-  String firstName;
-  String lastName;
-  String unitID;
-}
+class _ContactPageEmpty extends State<ContactPage> {
+  List<Contact> _contacts;
 
-class _ContactPageEmpty extends State<ContactPage>{
+  @override
+  initState() {
+    super.initState();
+    refresh();
+  }
+
+  Future<void> refresh() async {
+    List<Map<String, dynamic>> contacts = await DB.query(Contact.table);
+    _contacts = contacts.map((item) => Contact.fromMap(item)).toList();
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
+    refresh();
     return Scaffold(
       backgroundColor: Colors.grey[900],
       appBar: AppBar(
         backgroundColor: Colors.black12,
-        title: (
-          Text('Contacts',)
-        ),
+        title: (Text(
+          'Contacts',
+        )),
       ),
       body: Center(
-       child: const Text('You have no friends yet, click to add some!', style: TextStyle(color: Colors.white),),
-       
+        child: _contacts != null && _contacts.isNotEmpty
+            ? ListView.builder(
+                itemCount: _contacts?.length ?? 0,
+                itemBuilder: (BuildContext context, int index) {
+                  Contact contact = _contacts?.elementAt(index);
+                  return ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 2, horizontal: 18),
+                    leading: CircleAvatar(
+                      child: Text(
+                          "${contact.firstname[0].toUpperCase()}${contact.lastname[0].toUpperCase()}",
+                          style: TextStyle(color: Colors.white)),
+                      backgroundColor: Theme.of(context).accentColor,
+                    ),
+                    title: Text(
+                        "${contact.firstname} ${contact.lastname}: ${contact.userId}",
+                        style: TextStyle(color: Colors.white)),
+                    //This can be further expanded to showing contacts detail
+                    // onPressed().
+                  );
+                })
+            : Text(
+                'You have no friends yet, click to add some!',
+                style: TextStyle(color: Colors.white),
+              ),
       ),
-      floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add, color: Colors.black,),
-        backgroundColor: Colors.orange[400],
-        onPressed: (){
-          Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => formScreen()),
-            );
-        
-        },
+      // floatingActionButton: FloatingActionButton(
+      //   child: Icon(Icons.add, color: Colors.black,),
+      //   backgroundColor: Colors.orange[400],
+      //   onPressed: (){
+      //     Navigator.push(
+      //         context,
+      //         MaterialPageRoute(builder: (context) => formScreen()),
+      //       );
 
-      ),
-      
+      //   },
 
+      // ),
     );
   }
-
 }

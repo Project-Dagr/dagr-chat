@@ -11,13 +11,18 @@ import 'package:sqflite/sqflite.dart';
 
 import './services/db.dart';
 import './models/Message.dart';
+import './widgets/RecievedMessageWidget.dart';
+import './widgets/SentMessageWidget.dart';
+
+Color myGreen = Color(0xff4bb17b);
 
 class ChatPage extends StatefulWidget {
   final BluetoothDevice server;
 
   final String userId;
+  final String chat;
 
-  ChatPage({this.server, this.userId});
+  ChatPage({this.server, this.userId, this.chat});
 
   @override
   _ChatPage createState() => new _ChatPage(this.userId);
@@ -39,10 +44,8 @@ class _ChatPage extends State<ChatPage> {
   BluetoothCharacteristic readCharacteristic;
   BluetoothCharacteristic writeCharacteristic;
 
-  bool isConnecting = true;
-  // bool get isConnected => widget.server.state ==
+  bool isConnecting = false;
   bool isConnected = false;
-
   bool isDisconnecting = false;
 
   StreamSubscription<BluetoothDeviceState> stateStream;
@@ -55,48 +58,64 @@ class _ChatPage extends State<ChatPage> {
   void initState() {
     refresh();
     super.initState();
+    stateStream = widget.server.state.listen((state) {
+      setState(() {
+        isConnecting = (state == BluetoothDeviceState.connecting);
+        isConnected = (state == BluetoothDeviceState.connected);
+        isDisconnecting = (state == BluetoothDeviceState.disconnecting);
+      });
+      if (!isConnected) {
+        widget.server.connect();
+      }
+    });
 
-    stateStream = widget.server.state.listen((state) => {
-          setState(() {
-            isConnecting = (state == BluetoothDeviceState.connecting);
-            isConnected = (state == BluetoothDeviceState.connected);
-            isDisconnecting = (state == BluetoothDeviceState.disconnecting);
-          })
-        });
-
-    widget.server.connect();
+    // Future.doWhile(() async {
+    //   if (isConnected) {
+    //     return false;
+    //   } else if (!isConnecting) {
+    //     widget.server.connect();
+    //   }
+    //   await Future.delayed(Duration(milliseconds: 0xDD));
+    //   return true;
+    // });
 
     serviceStream = widget.server.services.listen((services) async {
       // print(services);
-      List<BluetoothCharacteristic> characteristics;
-      print("In discover services");
-      BluetoothService dagrService = services.singleWhere((service) =>
-          service.uuid
-              .toString()
-              .compareTo("a40a4466-5444-4fab-b012-16f820b749a8") ==
-          0);
-      readCharacteristic = dagrService.characteristics.singleWhere(
-          (characteristic) =>
-              characteristic.uuid
-                  .toString()
-                  .compareTo("d73d98d8-6e1a-46b9-a949-d174d89ee10d") ==
-              0);
-      writeCharacteristic = dagrService.characteristics.singleWhere(
-          (characteristic) =>
-              characteristic.uuid
-                  .toString()
-                  .compareTo("c79c596a-2580-48db-b398-27215023882d") ==
-              0);
+      if (services.isNotEmpty &&
+          (readCharacteristic == null || writeCharacteristic == null)) {
+        print("In discover services");
+        BluetoothService dagrService = services.singleWhere(
+            (service) =>
+                service.uuid
+                    .toString()
+                    .compareTo("a40a4466-5444-4fab-b012-16f820b749a8") ==
+                0,
+            orElse: null);
+        readCharacteristic = dagrService.characteristics.singleWhere(
+            (characteristic) =>
+                characteristic.uuid
+                    .toString()
+                    .compareTo("d73d98d8-6e1a-46b9-a949-d174d89ee10d") ==
+                0,
+            orElse: null);
+        writeCharacteristic = dagrService.characteristics.singleWhere(
+            (characteristic) =>
+                characteristic.uuid
+                    .toString()
+                    .compareTo("c79c596a-2580-48db-b398-27215023882d") ==
+                0,
+            orElse: null);
 
-      print("ReadCharacteristic: ${readCharacteristic.toString()}");
-      print("WriteCharacteristic: ${writeCharacteristic.toString()}");
-      await readCharacteristic.setNotifyValue(true);
-      await widget.server.requestMtu(255);
+        print("ReadCharacteristic: ${readCharacteristic.toString()}");
+        print("WriteCharacteristic: ${writeCharacteristic.toString()}");
+        await readCharacteristic.setNotifyValue(true);
+        await widget.server.requestMtu(255);
 
-      readStream =
-          readCharacteristic.value.listen((data) => _onDataReceived(data));
+        readStream =
+            readCharacteristic.value.listen((data) => _onDataReceived(data));
 
-      // await readCharacteristic.read();
+        // await readCharacteristic.read();
+      }
     });
 
     Future.doWhile(() async {
@@ -125,16 +144,24 @@ class _ChatPage extends State<ChatPage> {
     // Avoid memory leak (`setState` after dispose) and disconnect
 
     if (isConnected) {
-      widget.server.disconnect();
+      // widget.server.disconnect();
       stateStream.cancel();
       serviceStream.cancel();
+      readStream.cancel();
     }
 
     super.dispose();
   }
 
   Future<void> refresh() async {
-    List<Map<String, dynamic>> _results = await DB.query(Message.table);
+    List<Map<String, dynamic>> _results;
+    if (this.widget.chat == "-1") {
+      _results =
+          await DB.query(Message.table, where: "dest = ?", whereArgs: ["-1"]);
+    } else {
+      _results = await DB.query(Message.table,
+          where: "source = ?", whereArgs: [this.widget.chat]);
+    }
     messages = _results.map((item) => Message.fromMap(item)).toList();
     setState(() {});
     return;
@@ -142,100 +169,155 @@ class _ChatPage extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    final List<Row> list = messages.map((message) {
-      return Row(
-        children: <Widget>[
-          Container(
-            child: Text(
-                (text) {
-                  return text == '/shrug' ? '¯\\_(ツ)_/¯' : text;
-                }(utf8.decode(message.payload)),
-                style: TextStyle(color: Colors.white)),
-            padding: EdgeInsets.all(12.0),
-            margin: EdgeInsets.only(bottom: 8.0, left: 8.0, right: 8.0),
-            width: 222.0,
-            decoration: BoxDecoration(
-                color: message.source == clientID
-                    ? Colors.blueAccent
-                    : Colors.grey,
-                borderRadius: BorderRadius.circular(7.0)),
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        iconTheme: IconThemeData(color: Colors.black54),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            // MyCircleAvatar(
+            //   imgUrl: friendsList[0]['imgUrl'],
+            // ),
+            SizedBox(width: 15),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  "Cybdom Tech",
+                  style: Theme.of(context).textTheme.subhead,
+                  overflow: TextOverflow.clip,
+                ),
+                Text(
+                  "Online",
+                  style: Theme.of(context).textTheme.subtitle.apply(
+                        color: myGreen,
+                      ),
+                )
+              ],
+            )
+          ],
+        ),
+        actions: <Widget>[
+          IconButton(
+            icon: Icon(Icons.phone),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: Icon(Icons.videocam),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: Icon(Icons.more_vert),
+            onPressed: () {},
           ),
         ],
-        mainAxisAlignment: message.source == clientID
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-      );
-    }).toList();
-
-    return Scaffold(
-        appBar: AppBar(
-            title: (isConnecting
-                ? Text('Connecting chat to ' + widget.server.name + '...')
-                : isConnected
-                    ? Text('Live chat with ' + widget.server.name)
-                    : Text('Chat log with ' + widget.server.name))),
-        body: SafeArea(
-            child: Column(children: <Widget>[
-          Flexible(
-              child: ListView(
-                  padding: const EdgeInsets.all(12.0),
-                  controller: listScrollController,
-                  children: list)),
-          Row(children: <Widget>[
-            Flexible(
-              child: Container(
-                  margin: const EdgeInsets.only(left: 16.0),
-                  child: TextField(
-                    style: const TextStyle(fontSize: 15.0),
-                    controller: textEditingController,
-                    decoration: InputDecoration.collapsed(
-                      hintText: (isConnecting
-                          ? 'Wait until connected...'
-                          : isConnected
-                              ? 'Type your message...'
-                              : 'Chat got disconnected'),
-                      hintStyle: const TextStyle(color: Colors.grey),
-                    ),
-                    enabled: isConnected,
-                  )),
+      ),
+      body: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: Column(
+              children: <Widget>[
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(15),
+                    itemCount: messages.length,
+                    controller: listScrollController,
+                    itemBuilder: (ctx, i) {
+                      if (messages[i].source != this.widget.userId) {
+                        return ReceivedMessagesWidget(message: messages[i]);
+                      } else {
+                        return SentMessageWidget(message: messages[i]);
+                      }
+                    },
+                  ),
+                ),
+                Container(
+                  margin: EdgeInsets.all(15.0),
+                  height: 61,
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(35.0),
+                            boxShadow: [
+                              BoxShadow(
+                                  offset: Offset(0, 3),
+                                  blurRadius: 5,
+                                  color: Colors.grey)
+                            ],
+                          ),
+                          child: Row(
+                            children: <Widget>[
+                              IconButton(
+                                  icon: Icon(Icons.face), onPressed: () {}),
+                              Expanded(
+                                child: TextField(
+                                  controller: textEditingController,
+                                  decoration: InputDecoration(
+                                      hintText: (isConnecting
+                                          ? 'Wait until connected...'
+                                          : isConnected
+                                              ? 'Type your message...'
+                                              : 'Chat got disconnected'),
+                                      enabled: isConnected,
+                                      border: InputBorder.none),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 15),
+                      Container(
+                        padding: const EdgeInsets.all(15.0),
+                        decoration: BoxDecoration(
+                            color: myGreen, shape: BoxShape.circle),
+                        child: InkWell(
+                          child: Icon(
+                            Icons.send,
+                            color: Colors.white,
+                          ),
+                          onTap: () => _sendMessage(textEditingController.text),
+                        ),
+                      )
+                    ],
+                  ),
+                )
+              ],
             ),
-            Container(
-              margin: const EdgeInsets.all(8.0),
-              child: IconButton(
-                  icon: const Icon(Icons.send),
-                  onPressed: () => _sendMessage(textEditingController.text)),
-            ),
-          ])
-        ])));
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _onDataReceived(List<int> test) async {
-    // if (!readingValue) {
-    // setState(() {
-    //   readingValue = true;
-    // });
-    print("In recieve data");
-    print(test);
+    if (test.isNotEmpty) {
+      print("In recieve data");
+      print(test);
 
-    Message message =
-        Message.fromMap(jsonDecode(deserialize(test as Uint8List)));
-    print(message.source);
-    await DB.insert(Message.table, message);
-    setState(() {
-      messages = List<Message>();
-    });
-    await refresh();
-    // setState(() {
-    //   readingValue = false;
-    // });
-    Future.delayed(Duration(milliseconds: 333)).then((_) {
-      listScrollController.animateTo(
-          listScrollController.position.maxScrollExtent,
-          duration: Duration(milliseconds: 333),
-          curve: Curves.easeOut);
-    });
-    return;
-    // }
+      Message message =
+          Message.fromMap(jsonDecode(deserialize(Uint8List.fromList(test))));
+      print(message.source);
+      await DB.insert(Message.table, message);
+      setState(() {
+        messages = List<Message>();
+      });
+      await refresh();
+      Future.delayed(Duration(milliseconds: 333)).then((_) {
+        listScrollController.animateTo(
+            listScrollController.position.maxScrollExtent,
+            duration: Duration(milliseconds: 333),
+            curve: Curves.easeOut);
+      });
+      return;
+      // }
+    }
   }
 
   void _sendMessage(String text) async {
@@ -244,13 +326,6 @@ class _ChatPage extends State<ChatPage> {
 
     if (text.length > 0) {
       try {
-        // Message message = Message(clientID, text);
-        // ChatMessage message = ChatMessage();
-        // message.from = this.clientID;
-        // message.to = "77b35958-b093-42f2-818c-36ba8a210294";
-        // message.from = 0;
-        // message.to = 1;
-        // message.message = utf8.encode(text);
         Message message = Message(
             source: widget.userId, dest: "-1", payload: utf8.encode(text));
 

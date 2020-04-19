@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import './BLEDevicePage.dart';
 import 'package:hashids2/hashids2.dart';
 import './services/db.dart';
+import './MainPage2.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,7 +41,7 @@ class _DagrState extends State<DagrMain> {
       });
       if (this.userId == "") {
         setState(() {
-          userId = hashids.encode(Random().nextInt(100));
+          userId = hashids.encode(Random().nextInt(100)).toUpperCase();
         });
         prefs.setString("userId", this.userId);
       }

@@ -9,14 +9,10 @@ import './helpers/widgets.dart';
 import './BluetoothDeviceListEntry.dart';
 
 class FindDevicesScreen extends StatelessWidget {
-  String userId;
-  SharedPreferences prefs;
+  final String userId;
+  final SharedPreferences prefs;
 
-  FindDevicesScreen(this.userId) {
-    SharedPreferences.getInstance().then((prefs) {
-      this.prefs = prefs;
-    });
-  }
+  FindDevicesScreen(this.userId, this.prefs);
 
   @override
   Widget build(BuildContext context) {
@@ -72,19 +68,13 @@ class FindDevicesScreen extends StatelessWidget {
                         (r) => ScanResultTile(
                             result: r,
                             onTap: () async {
-                              r.device.connect();
+                              // r.device.connect();
                               print(r.device.id.toString());
                               if (await this.prefs.setString(
                                   "savedDevice", r.device.id.toString()))
-                                Navigator.of(context).pop();
-                            }
-                            // Navigator.of(context)
-                            //     .push(MaterialPageRoute(builder: (context) {
-
-                            //   return ChatPage(
-                            //       server: r.device, userId: this.userId);
-                            // })),
-                            ),
+                                await FlutterBlue.instance.stopScan();
+                              Navigator.of(context).pop(r.device.id.toString());
+                            }),
                       )
                       .toList(),
                 ),
