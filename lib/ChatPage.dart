@@ -8,6 +8,7 @@ import 'package:flutter_blue/flutter_blue.dart';
 import 'package:msgpack_dart/msgpack_dart.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:streamqflite/streamqflite.dart';
 
 import './services/db.dart';
 import './models/Message.dart';
@@ -56,7 +57,7 @@ class _ChatPage extends State<ChatPage> {
 
   @override
   void initState() {
-    refresh();
+    // refresh();
     super.initState();
     stateStream = widget.server.state.listen((state) {
       setState(() {
@@ -101,11 +102,38 @@ class _ChatPage extends State<ChatPage> {
         await readCharacteristic.setNotifyValue(true);
         await widget.server.requestMtu(255);
 
-        readStream =
-            readCharacteristic.value.listen((data) => _onDataReceived(data));
+        // readStream =
+        //     readCharacteristic.value.listen((data) => _onDataReceived(data));
 
         // await readCharacteristic.read();
       }
+
+      Stream<List<Message>> _results;
+      if (this.widget.chat == "-1") {
+        _results = DB.query(Message.table,
+            where: "dest = ?",
+            whereArgs: ["-1"]).mapToList((row) => Message.fromMap(row));
+      } else {
+        _results = DB.query(Message.table,
+            where: "(source = ? AND dest = ?) OR (source = ? AND dest = ?)",
+            whereArgs: [
+              this.widget.chat,
+              this.widget.userId,
+              this.widget.userId,
+              this.widget.chat
+            ]).mapToList((row) => Message.fromMap(row));
+      }
+      _results.listen((savedMessages) {
+        Future.delayed(Duration(milliseconds: 333)).then((_) {
+          listScrollController.animateTo(
+              listScrollController.position.maxScrollExtent,
+              duration: Duration(milliseconds: 333),
+              curve: Curves.easeOut);
+        });
+        setState(() {
+          messages = savedMessages;
+        });
+      });
     });
 
     Future.doWhile(() async {
@@ -143,19 +171,31 @@ class _ChatPage extends State<ChatPage> {
     super.dispose();
   }
 
-  Future<void> refresh() async {
-    List<Map<String, dynamic>> _results;
-    if (this.widget.chat == "-1") {
-      _results =
-          await DB.query(Message.table, where: "dest = ?", whereArgs: ["-1"]);
-    } else {
-      _results = await DB.query(Message.table,
-          where: "source = ?", whereArgs: [this.widget.chat]);
-    }
-    messages = _results.map((item) => Message.fromMap(item)).toList();
-    setState(() {});
-    return;
-  }
+  // Future<void> refresh() async {
+  //   Stream<List<Message>> _results;
+  //   if (this.widget.chat == "-1") {
+  //     _results = DB.query(Message.table,
+  //         where: "dest = ?",
+  //         whereArgs: ["-1"]).mapToList((row) => Message.fromMap(row));
+  //   } else {
+  //     _results = DB.query(Message.table,
+  //         where: "(source = ? AND dest = ?) OR (source = ? AND dest = ?)",
+  //         whereArgs: [
+  //           this.widget.chat,
+  //           this.widget.userId,
+  //           this.widget.userId,
+  //           this.widget.chat
+  //         ]).mapToList((row) => Message.fromMap(row));
+  //   }
+  //   _results.listen((messages) {
+  //     setState(() {
+  //       messages = messages;
+  //     });
+  //   });
+  //   // messages = _results.map((item) => Message.fromMap(item)).toList();
+  //   // setState(() {});
+  //   return;
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -181,7 +221,7 @@ class _ChatPage extends State<ChatPage> {
                   overflow: TextOverflow.clip,
                 ),
                 Text(
-                  isConnected ? "Connected": "Disconnected" ,
+                  isConnected ? "Connected" : "Disconnected",
                   style: Theme.of(context).textTheme.subtitle.apply(
                         color: isConnected ? myGreen : Colors.grey,
                       ),
@@ -298,7 +338,7 @@ class _ChatPage extends State<ChatPage> {
       setState(() {
         messages = List<Message>();
       });
-      await refresh();
+      // await refresh();
       Future.delayed(Duration(milliseconds: 333)).then((_) {
         listScrollController.animateTo(
             listScrollController.position.maxScrollExtent,
@@ -317,7 +357,9 @@ class _ChatPage extends State<ChatPage> {
     if (text.length > 0) {
       try {
         Message message = Message(
-            source: widget.userId, dest: widget.chat, payload: utf8.encode(text));
+            source: widget.userId,
+            dest: widget.chat,
+            payload: utf8.encode(text));
 
         var encodedMessage = serialize(message.toJSON());
         print(message.toMap());
@@ -329,7 +371,7 @@ class _ChatPage extends State<ChatPage> {
         setState(() {
           messages = List<Message>();
         });
-        refresh();
+        // refresh();
 
         Future.delayed(Duration(milliseconds: 333)).then((_) {
           listScrollController.animateTo(

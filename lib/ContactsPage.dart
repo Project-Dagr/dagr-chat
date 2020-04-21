@@ -24,18 +24,25 @@ class _ContactPageEmpty extends State<ContactPage> {
   @override
   initState() {
     super.initState();
-    refresh();
+    DB.query(Contact.table).mapToList<Contact>((row) => Contact.fromMap(row)).listen((contacts) {
+      print("in Stream query");
+      print(contacts);
+      setState(() {
+        _contacts = contacts;
+      });
+    });
+    // refresh();
   }
 
-  Future<void> refresh() async {
-    List<Map<String, dynamic>> contacts = await DB.query(Contact.table);
-    _contacts = contacts.map((item) => Contact.fromMap(item)).toList();
-    setState(() {});
-  }
+  // Future<void> refresh() async {
+  //   List<Map<String, dynamic>> contacts = DB.query(Contact.table);
+  //   _contacts = contacts.map((item) => Contact.fromMap(item)).toList();
+  //   setState(() {});
+  // }
 
   @override
   Widget build(BuildContext context) {
-    refresh();
+    // refresh();
     return Scaffold(
       backgroundColor: Colors.grey[900],
       // appBar: AppBar(

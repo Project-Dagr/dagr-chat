@@ -1,9 +1,10 @@
 import 'dart:async';
 import '../models/model.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:streamqflite/streamqflite.dart';
 
 abstract class DB {
-  static Database _db;
+  static StreamDatabase _db;
 
   static int get _version => 1;
 
@@ -14,7 +15,8 @@ abstract class DB {
 
     try {
       String _path = await getDatabasesPath() + 'dagr.db';
-      _db = await openDatabase(_path, version: _version, onCreate: onCreate);
+      _db = StreamDatabase(
+          await openDatabase(_path, version: _version, onCreate: onCreate));
     } catch (ex) {
       print(ex);
     }
@@ -27,7 +29,7 @@ abstract class DB {
         'CREATE TABLE contacts (id INTEGER PRIMARY KEY AUTOINCREMENT, firstname TEXT, lastname TEXT, userId String)');
   }
 
-  static Future<List<Map<String, dynamic>>> query(String table,
+  static QueryStream query(String table,
           {bool distinct,
           List<String> columns,
           String where,
@@ -36,8 +38,8 @@ abstract class DB {
           String having,
           String orderBy,
           int limit,
-          int offset}) async =>
-      _db.query(table,
+          int offset}) =>
+      _db.createQuery(table,
           distinct: distinct,
           columns: columns,
           where: where,
