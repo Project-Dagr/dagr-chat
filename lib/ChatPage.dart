@@ -69,16 +69,6 @@ class _ChatPage extends State<ChatPage> {
       }
     });
 
-    // Future.doWhile(() async {
-    //   if (isConnected) {
-    //     return false;
-    //   } else if (!isConnecting) {
-    //     widget.server.connect();
-    //   }
-    //   await Future.delayed(Duration(milliseconds: 0xDD));
-    //   return true;
-    // });
-
     serviceStream = widget.server.services.listen((services) async {
       // print(services);
       if (services.isNotEmpty &&
@@ -186,14 +176,14 @@ class _ChatPage extends State<ChatPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  "Cybdom Tech",
+                  widget.chat == "-1" ? "General" : widget.chat,
                   style: Theme.of(context).textTheme.subhead,
                   overflow: TextOverflow.clip,
                 ),
                 Text(
-                  "Online",
+                  isConnected ? "Connected": "Disconnected" ,
                   style: Theme.of(context).textTheme.subtitle.apply(
-                        color: myGreen,
+                        color: isConnected ? myGreen : Colors.grey,
                       ),
                 )
               ],
@@ -201,18 +191,18 @@ class _ChatPage extends State<ChatPage> {
           ],
         ),
         actions: <Widget>[
-          IconButton(
-            icon: Icon(Icons.phone),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: Icon(Icons.videocam),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: Icon(Icons.more_vert),
-            onPressed: () {},
-          ),
+          // IconButton(
+          //   icon: Icon(Icons.phone),
+          //   onPressed: () {},
+          // ),
+          // IconButton(
+          //   icon: Icon(Icons.videocam),
+          //   onPressed: () {},
+          // ),
+          // IconButton(
+          //   icon: Icon(Icons.more_vert),
+          //   onPressed: () {},
+          // ),
         ],
       ),
       body: Stack(
@@ -327,7 +317,7 @@ class _ChatPage extends State<ChatPage> {
     if (text.length > 0) {
       try {
         Message message = Message(
-            source: widget.userId, dest: "-1", payload: utf8.encode(text));
+            source: widget.userId, dest: widget.chat, payload: utf8.encode(text));
 
         var encodedMessage = serialize(message.toJSON());
         print(message.toMap());

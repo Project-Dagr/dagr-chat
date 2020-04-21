@@ -23,6 +23,9 @@ class _MainPage extends State<MainPage> with SingleTickerProviderStateMixin {
   DeviceIdentifier savedDeviceId;
   BluetoothDevice device;
   StreamSubscription<BluetoothDeviceState> deviceStateStream;
+  StreamSubscription<List<BluetoothService>> deviceServiceStream;
+    BluetoothCharacteristic readCharacteristic;
+  BluetoothCharacteristic writeCharacteristic;
 
   bool isConnecting = true;
   bool isConnected = false;
@@ -52,7 +55,8 @@ class _MainPage extends State<MainPage> with SingleTickerProviderStateMixin {
         this.savedDeviceId =
             DeviceIdentifier(this.prefs.getString("savedDevice") ?? "");
 
-        if (savedDeviceId == null || savedDeviceId.id == "") {
+        if (savedDeviceId.id == "") {
+          print("no saved device");
           Navigator.of(context)
               .push(
             MaterialPageRoute(
@@ -87,19 +91,10 @@ class _MainPage extends State<MainPage> with SingleTickerProviderStateMixin {
             //     ChatsListPage(device: this.device, userId: this.userId);
             // setState(() {});
           } else {
-            Navigator.of(context)
-                .push(
-              MaterialPageRoute(
-                  builder: (context) => FindDevicesScreen(this.userId, prefs)),
-            )
-                .then((value) {
-              setState(() {
-                this.savedDeviceId = DeviceIdentifier(value);
-                getDeviceFromId();
-              });
-            });
-            print("DeviceId:  ${this.savedDeviceId.id}");
+            getDeviceFromId();
           }
+        } else {
+          getDeviceFromId();
         }
 
         setState(() {
@@ -122,9 +117,8 @@ class _MainPage extends State<MainPage> with SingleTickerProviderStateMixin {
     StreamSubscription<List<ScanResult>> scanResults =
         FlutterBlue.instance.scanResults.listen((results) async {
       if (this.device == null) {
-        FlutterBlue.instance.stopScan();
-
         print("chatsListPage1 refeshed");
+        print(results);
 
         ScanResult foundResult = results.firstWhere(
             (r) => r.device.id == this.savedDeviceId,
@@ -137,7 +131,52 @@ class _MainPage extends State<MainPage> with SingleTickerProviderStateMixin {
           // this.device = foundResult.device;
           await this.device.connect();
           print(foundResult.device.id);
+          FlutterBlue.instance.stopScan();
+          deviceStateStream = this.device.state.listen((state) {
+      setState(() {
+        isConnecting = (state == BluetoothDeviceState.connecting);
+        isConnected = (state == BluetoothDeviceState.connected);
+        isDisconnecting = (state == BluetoothDeviceState.disconnecting);
+      });
+      if (!isConnected) {
+        this.device.connect();
+      }
+    });
 
+    deviceServiceStream = this.device.services.listen((services) async {
+      // print(services);
+      if (services.isNotEmpty &&
+          (readCharacteristic == null || writeCharacteristic == null)) {
+        print("In discover services");
+        BluetoothService dagrService = services.singleWhere(
+            (service) =>
+                service.uuid
+                    .toString()
+                    .compareTo("a40a4466-5444-4fab-b012-16f820b749a8") ==
+                0,
+            orElse: null);
+        readCharacteristic = dagrService.characteristics.singleWhere(
+            (characteristic) =>
+                characteristic.uuid
+                    .toString()
+                    .compareTo("d73d98d8-6e1a-46b9-a949-d174d89ee10d") ==
+                0,
+            orElse: null);
+        writeCharacteristic = dagrService.characteristics.singleWhere(
+            (characteristic) =>
+                characteristic.uuid
+                    .toString()
+                    .compareTo("c79c596a-2580-48db-b398-27215023882d") ==
+                0,
+            orElse: null);
+
+        print("ReadCharacteristic: ${readCharacteristic.toString()}");
+        print("WriteCharacteristic: ${writeCharacteristic.toString()}");
+        await readCharacteristic.setNotifyValue(true);
+        await this.device.requestMtu(255);
+
+        readStream =
+            readCharacteristic.value.listen((data) => _onDataReceived(data));
         } else {
           print("Didnt find the device");
         }
@@ -148,7 +187,7 @@ class _MainPage extends State<MainPage> with SingleTickerProviderStateMixin {
   @override
   void dispose() {
     super.dispose();
-    deviceStateStream.cancel();
+    deviceSeviceD.cancel();
     // scanResults.cancel();
   }
 
@@ -164,28 +203,36 @@ class _MainPage extends State<MainPage> with SingleTickerProviderStateMixin {
           iconTheme: IconThemeData(color: Colors.black45),
           title: Text(_index == 0 ? "Dagr Chat" : "Dagr Contacts"),
           actions: <Widget>[
-            IconButton(
-              icon: Icon(Icons.search),
-              onPressed: () {},
-            ),
-            IconButton(
-              icon: Icon(Icons.add_box),
-              onPressed: () => _index == 0
-                  ? null
-                  : Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => ContactFormScreen()),
-                    ),
-            ),
+            FlatButton(onPressed: () {}, child: Text(this.userId)),
+            // IconButton(
+            //   icon: Icon(Icons.search),
+            //   onPressed: () {},
+            // ),
+            // IconButton(
+            //   icon: Icon(Icons.add_box),
+            //   onPressed: () => _index == 0
+            //       ? null
+            //       : Navigator.push(
+            //           context,
+            //           MaterialPageRoute(
+            //               builder: (context) => ContactFormScreen()),
+            //         ),
+            // ),
           ],
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         floatingActionButton: FloatingActionButton(
           elevation: 5,
           backgroundColor: myGreen,
-          child: Icon(Icons.camera),
-          onPressed: () {},
+          child: Icon(Icons.add),
+          onPressed: () {
+            _index == 0
+                ? null
+                : Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => ContactFormScreen()));
+          },
         ),
         bottomNavigationBar: BottomAppBar(
           shape: CircularNotchedRectangle(),
@@ -216,7 +263,7 @@ class _MainPage extends State<MainPage> with SingleTickerProviderStateMixin {
         ),
         body: _index == 0
             ? ChatsListPage(device: this.device, userId: this.userId)
-            : contactsPage
+            : ContactPage(device: this.device, userId: this.userId)
         // ListView.builder(
         //   itemCount: friendsList.length,
         //   itemBuilder: (ctx, i) {
